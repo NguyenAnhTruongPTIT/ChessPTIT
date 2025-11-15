@@ -111,7 +111,7 @@ public class MatchDAO {
      * @return Một danh sách các đối tượng Match.
      */
     public List<Match> getAllMatches() {
-        String sql = "SELECT * FROM matches ORDER BY match_id DESC";
+        String sql = "SELECT * FROM matches WHERE result != 'In Progress' ORDER BY match_id DESC";
         List<Match> matches = new ArrayList<>();
 
         // Đối với tác vụ chỉ đọc (SELECT), try-with-resources là đủ và gọn gàng nhất.

@@ -41,26 +41,24 @@ public class GameService {
         this.gameState = GameState.IN_PROGRESS;
         this.enPassantTargetSquare = null;
         this.currentMatchId = matchDAO.createNewMatch(player1Name, player2Name);
+        System.out.println(
+                "New game started (ID: " + this.currentMatchId + ") between " + player1Name + " and " + player2Name);
     }
 
     public boolean handleMove(Position from, Position to) {
+        Position previousEnPassantTarget = this.enPassantTargetSquare;
+        this.enPassantTargetSquare = null;
+
         Piece pieceToMove = board.getPieceAt(from);
 
         if (pieceToMove == null || pieceToMove.getColor() != currentPlayer) {
             return false;
         }
 
-        // SỬA LỖI: Lấy danh sách nước đi hợp lệ TRƯỚC KHI reset enPassantTargetSquare
         List<Position> validMoves = pieceToMove.getValidMoves(board, from, this);
         if (!validMoves.contains(to)) {
             return false;
         }
-
-        // SỬA LỖI: Lưu lại giá trị en passant của lượt này trước khi nó bị thay đổi
-        Position previousEnPassantTarget = this.enPassantTargetSquare;
-
-        // SỬA LỖI: Reset ô en passant ngay sau khi đã kiểm tra nước đi hợp lệ
-        this.enPassantTargetSquare = null;
 
         if (moveResultsInCheck(from, to, currentPlayer)) {
             return false;
@@ -69,10 +67,14 @@ public class GameService {
         boolean isCapture = board.getPieceAt(to) != null
                 || (pieceToMove instanceof Pawn && to.equals(previousEnPassantTarget));
 
-        // Xử lý di chuyển
+        // --- BƯỚC 1: TẠO KÝ HIỆU NƯỚC ĐI CƠ BẢN ---
+        String notation = convertToNotation(pieceToMove, from, to, isCapture);
+
+        // --- BƯỚC 2: THỰC HIỆN DI CHUYỂN TRÊN BÀN CỜ ---
         if (pieceToMove instanceof King && isCastlingMove(from, to)) {
             if (canCastle((King) pieceToMove, from, to)) {
                 performCastling(from, to);
+                // Ký hiệu nhập thành đã được xử lý trong convertToNotation
             } else {
                 return false;
             }
@@ -82,9 +84,7 @@ public class GameService {
             performNormalMove(from, to);
         }
 
-        // Tạo ký hiệu nước đi cơ bản
-        String notation = convertToNotation(pieceToMove, from, to, isCapture);
-
+        // --- BƯỚC 3: XỬ LÝ CÁC TRƯỜNG HỢP ĐẶC BIỆT SAU NƯỚC ĐI ---
         // Thiết lập ô enPassant cho lượt tiếp theo nếu Tốt đi 2 ô
         if (pieceToMove instanceof Pawn && Math.abs(from.row() - to.row()) == 2) {
             int direction = (pieceToMove.getColor() == PieceColor.WHITE) ? -1 : 1;
@@ -97,30 +97,28 @@ public class GameService {
                     (pieceToMove.getColor() == PieceColor.BLACK && to.row() == 7);
             if (isPromotion) {
                 this.gameState = GameState.PAWN_PROMOTION;
-                moveHistory.add(notation);
-                return true;
+                moveHistory.add(notation); // Lưu tạm nước đi, sẽ cập nhật sau khi phong cấp
+                return true; // Dừng lại, không chuyển lượt vội
             }
         }
 
-        // Chuyển lượt và cập nhật trạng thái game
-        switchPlayer();
+        // --- BƯỚC 4: CHUYỂN LƯỢT VÀ HOÀN THIỆN KÝ HIỆU ---
+        switchPlayer(); // Chuyển lượt và cập nhật gameState (CHECK, CHECKMATE,...)
 
-        // Thêm ký hiệu chiếu/chiếu bí vào nước đi
+        // Thêm ký hiệu chiếu/chiếu bí vào nước đi vừa rồi
         if (gameState == GameState.CHECKMATE) {
             notation += "#";
         } else if (gameState == GameState.CHECK) {
             notation += "+";
         }
 
-        moveHistory.add(notation);
+        moveHistory.add(notation); // Lưu ký hiệu hoàn chỉnh vào lịch sử
 
         return true;
     }
 
-    // ... các phương thức còn lại giữ nguyên như phiên bản hoàn chỉnh trước đó ...
-
     public void promotePawn(Position position, String choice) {
-        PieceColor promotionColor = board.getPieceAt(position).getColor();
+        PieceColor promotionColor = board.getPieceAt(position).getColor(); // Lấy màu từ quân Tốt
         Piece newPiece;
         switch (choice.toUpperCase()) {
             case "QUEEN":
@@ -138,20 +136,35 @@ public class GameService {
             default:
                 newPiece = new Queen(promotionColor);
         }
-        board.setPieceAt(position, newPiece);
+        board.setPieceAt(position, newPiece); // Thay thế Tốt bằng quân mới
+
+        String promotionNotation = "=" + choice.toUpperCase().charAt(0);
+
+        // Lấy nước đi Tốt vừa lưu tạm và thêm ký hiệu phong cấp
         if (!moveHistory.isEmpty()) {
             int lastMoveIndex = moveHistory.size() - 1;
             String lastMove = moveHistory.get(lastMoveIndex);
-            moveHistory.set(lastMoveIndex, lastMove + "=" + choice.toUpperCase().charAt(0));
+            // Đảm bảo không thêm dấu = nhiều lần nếu có lỗi logic nào đó
+            if (!lastMove.contains("=")) {
+                moveHistory.set(lastMoveIndex, lastMove + promotionNotation);
+            }
         }
+
+        // Chuyển lượt và cập nhật trạng thái game (có thể thành CHECK hoặc CHECKMATE)
         switchPlayer();
+
+        // Thêm ký hiệu chiếu/chiếu bí vào nước đi phong cấp nếu cần
         if (!moveHistory.isEmpty()) {
             int lastMoveIndex = moveHistory.size() - 1;
             String lastMove = moveHistory.get(lastMoveIndex);
             if (gameState == GameState.CHECKMATE) {
-                moveHistory.set(lastMoveIndex, lastMove + "#");
+                // Đảm bảo không thêm dấu # nếu đã có (ít khả năng xảy ra)
+                if (!lastMove.endsWith("#"))
+                    moveHistory.set(lastMoveIndex, lastMove + "#");
             } else if (gameState == GameState.CHECK) {
-                moveHistory.set(lastMoveIndex, lastMove + "+");
+                // Đảm bảo không thêm dấu + nếu đã có
+                if (!lastMove.endsWith("+"))
+                    moveHistory.set(lastMoveIndex, lastMove + "+");
             }
         }
     }
@@ -164,22 +177,24 @@ public class GameService {
         }
         board.movePiece(from, to);
         updateHasMovedFlag(pieceToMove);
+        // Không còn lưu moveHistory ở đây
     }
 
     private void performCastling(Position kingFrom, Position kingTo) {
         board.movePiece(kingFrom, kingTo);
         Position rookFrom, rookTo;
-        if (kingTo.col() == 6) {
+        if (kingTo.col() == 6) { // Nhập thành cánh ngắn
             rookFrom = new Position(kingFrom.row(), 7);
             rookTo = new Position(kingFrom.row(), 5);
-        } else {
+        } else { // Nhập thành cánh dài
             rookFrom = new Position(kingFrom.row(), 0);
             rookTo = new Position(kingFrom.row(), 3);
         }
         Piece rook = board.getPieceAt(rookFrom);
         board.movePiece(rookFrom, rookTo);
-        updateHasMovedFlag(board.getPieceAt(kingTo));
-        updateHasMovedFlag(rook);
+        updateHasMovedFlag(board.getPieceAt(kingTo)); // Cập nhật Vua
+        updateHasMovedFlag(rook); // Cập nhật Xe
+        // Không còn lưu moveHistory ở đây
     }
 
     private void performEnPassant(Position from, Position to) {
@@ -192,9 +207,11 @@ public class GameService {
         }
         board.movePiece(from, to);
         board.setPieceAt(capturedPawnPos, null);
+        // Không còn lưu moveHistory ở đây
     }
 
     private void updateHasMovedFlag(Piece piece) {
+        // Cần kiểm tra null phòng trường hợp không mong muốn
         if (piece instanceof Rook)
             ((Rook) piece).setHasMoved(true);
         if (piece instanceof King)
@@ -204,6 +221,7 @@ public class GameService {
     private void switchPlayer() {
         currentPlayer = (currentPlayer == PieceColor.WHITE) ? PieceColor.BLACK : PieceColor.WHITE;
         updateGameState();
+        // Không còn thêm ký hiệu chiếu/bí ở đây
     }
 
     private void updateGameState() {
@@ -229,28 +247,49 @@ public class GameService {
         if (currentMatchId > 0) {
             matchDAO.updateMatchResult(currentMatchId, result);
             moveDAO.saveMovesForMatch(currentMatchId, moveHistory);
+            System.out.println("Match (ID: " + currentMatchId + ") and its moves have been saved.");
+        } else {
+            System.err.println("Error saving game: Invalid match ID (" + currentMatchId + ")");
         }
     }
 
+    // --- PHƯƠNG THỨC CHUYỂN ĐỔI KÝ HIỆU ĐÃ CẬP NHẬT ---
     private String convertToNotation(Piece piece, Position from, Position to, boolean isCapture) {
+        // Xử lý riêng cho Nhập thành
         if (piece instanceof King && Math.abs(from.col() - to.col()) == 2) {
             return (to.col() == 6) ? "0-0" : "0-0-0";
         }
+
         StringBuilder notation = new StringBuilder();
+
+        // 1. Ký hiệu quân cờ (trừ Tốt)
         if (!(piece instanceof Pawn)) {
             String pieceName = piece.getClass().getSimpleName();
-            notation.append(pieceName.equals("Knight") ? "N" : pieceName.charAt(0));
-        } else if (isCapture) {
+            notation.append(pieceName.equals("Knight") ? "N" : pieceName.toUpperCase().charAt(0));
+            // TODO: Xử lý Disambiguation (ví dụ: Raxd1, R1xd1) nếu cần
+        }
+
+        // 2. Với Tốt, chỉ ghi cột xuất phát khi ăn quân
+        if (piece instanceof Pawn && isCapture) {
             notation.append((char) ('a' + from.col()));
         }
+
+        // 3. Ký hiệu ăn quân 'x'
         if (isCapture) {
             notation.append("x");
         }
-        notation.append((char) ('a' + to.col()));
-        notation.append(8 - to.row());
+
+        // 4. Tọa độ ô đích
+        notation.append((char) ('a' + to.col())); // Cột a-h
+        notation.append(8 - to.row()); // Hàng 1-8
+
+        // Ký hiệu Phong cấp (=Q) sẽ được thêm bởi promotePawn()
+        // Ký hiệu Chiếu (+), Chiếu bí (#) sẽ được thêm sau khi switchPlayer()
+
         return notation.toString();
     }
 
+    // --- CÁC PHƯƠNG THỨC KIỂM TRA LOGIC KHÁC (GIỮ NGUYÊN) ---
     private boolean moveResultsInCheck(Position from, Position to, PieceColor playerColor) {
         Board tempBoard = board.deepClone();
         tempBoard.movePiece(from, to);
@@ -340,27 +379,30 @@ public class GameService {
      * Phương thức này sẽ lọc ra các nước đi tự làm Vua của mình bị chiếu.
      * 
      * @param from Vị trí của quân cờ cần kiểm tra.
-     * @return Một danh sách các nước đi hợp lệ.
+     * @return Một danh sách các nước đi hợp lệ, trả về rỗng nếu không có quân cờ
+     *         hợp lệ tại 'from'.
      */
     public List<Position> getLegalMovesForPiece(Position from) {
         List<Position> legalMoves = new ArrayList<>();
         Piece piece = board.getPieceAt(from);
+
+        // Kiểm tra xem có quân cờ hợp lệ tại vị trí 'from' không
         if (piece == null || piece.getColor() != currentPlayer) {
-            return legalMoves; // Trả về danh sách rỗng nếu không có quân cờ hoặc không phải lượt
+            return legalMoves; // Trả về danh sách rỗng nếu không hợp lệ
         }
 
-        // Lấy danh sách các nước đi tiềm năng
+        // Lấy danh sách các nước đi tiềm năng từ chính quân cờ
         List<Position> potentialMoves = piece.getValidMoves(board, from, this);
 
         // Lọc ra những nước đi không làm Vua bị chiếu
         for (Position to : potentialMoves) {
-            // Xử lý riêng cho nhập thành vì nó phức tạp hơn
+            // Xử lý riêng cho nhập thành vì 'canCastle' kiểm tra các điều kiện về chiếu
             if (piece instanceof King && isCastlingMove(from, to)) {
                 if (canCastle((King) piece, from, to)) {
                     legalMoves.add(to);
                 }
             }
-            // Xử lý các nước đi còn lại
+            // Xử lý các nước đi còn lại bằng cách kiểm tra tự chiếu
             else if (!moveResultsInCheck(from, to, currentPlayer)) {
                 legalMoves.add(to);
             }

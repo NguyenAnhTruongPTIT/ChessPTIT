@@ -1,6 +1,6 @@
 package com.ChessPTIT.model;
 
-import com.ChessPTIT.service.GameService; // <-- THÊM IMPORT NÀY
+import com.ChessPTIT.service.GameService;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,12 +20,12 @@ public class Pawn extends Piece {
         // Xác định hướng đi của Tốt
         int direction = (this.getColor() == PieceColor.WHITE) ? -1 : 1;
 
-        // 1. KIỂM TRA NƯỚC ĐI THẲNG 1 Ô (giữ nguyên)
+        // 1. KIỂM TRA NƯỚC ĐI THẲNG 1 Ô 
         Position oneStepForward = new Position(currentRow + direction, currentCol);
         if (isValid(oneStepForward) && board.getPieceAt(oneStepForward) == null) {
             moves.add(oneStepForward);
 
-            // 2. KIỂM TRA NƯỚC ĐI THẲNG 2 Ô (giữ nguyên)
+            // 2. KIỂM TRA NƯỚC ĐI THẲNG 2 Ô 
             boolean isAtStartingRow = (this.getColor() == PieceColor.WHITE && currentRow == 6) ||
                     (this.getColor() == PieceColor.BLACK && currentRow == 1);
             if (isAtStartingRow) {
@@ -36,7 +36,7 @@ public class Pawn extends Piece {
             }
         }
 
-        // 3. KIỂM TRA 2 NƯỚC ĂN CHÉO (giữ nguyên)
+        // 3. KIỂM TRA 2 NƯỚC ĂN CHÉO 
         int[] captureCols = { currentCol - 1, currentCol + 1 };
         for (int captureCol : captureCols) {
             Position diagonalPos = new Position(currentRow + direction, captureCol);
@@ -49,7 +49,7 @@ public class Pawn extends Piece {
             }
         }
 
-        // THAY ĐỔI 2: THÊM LOGIC BẮT TỐT QUA ĐƯỜNG (EN PASSANT)
+        // LOGIC BẮT TỐT QUA ĐƯỜNG
         Position enPassantTarget = gameService.getEnPassantTargetSquare();
         if (enPassantTarget != null) {
             // Kiểm tra xem một trong hai ô ăn chéo có phải là ô en passant không

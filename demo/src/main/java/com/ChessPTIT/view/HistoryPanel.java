@@ -44,6 +44,7 @@ public class HistoryPanel extends JPanel {
         // 2. Panel bên phải: Hiển thị chi tiết các nước đi
         movesTextArea = new JTextArea("Chọn một ván đấu từ danh sách bên trái.");
         movesTextArea.setEditable(false);
+        // Đảm bảo sử dụng font Monospaced để căn chỉnh hoạt động đúng
         movesTextArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
         splitPane.setRightComponent(new JScrollPane(movesTextArea));
 
@@ -70,8 +71,12 @@ public class HistoryPanel extends JPanel {
             listModel.addElement(match);
         }
         movesTextArea.setText("Chọn một ván đấu từ danh sách bên trái.");
+        movesTextArea.setCaretPosition(0); // Đảm bảo cuộn lên đầu khi tải lại
     }
 
+    /**
+     * Hiển thị chi tiết nước đi của ván đấu đã chọn, căn chỉnh đẹp hơn.
+     */
     private void displayMatchDetails(Match match) {
         List<String> moves = moveDAO.getMovesForMatch(match.getMatchId());
         StringBuilder sb = new StringBuilder();
@@ -80,14 +85,15 @@ public class HistoryPanel extends JPanel {
         sb.append(String.format("%s (Trắng) vs %s (Đen)\n", match.getPlayerWhiteName(), match.getPlayerBlackName()));
         sb.append(String.format("Kết quả: %s\n\n", match.getResult()));
         sb.append("Lịch sử nước đi:\n");
+        sb.append("---------------------\n"); // Dòng phân cách
 
         int moveNumber = 1;
-        // Lặp qua danh sách nước đi, mỗi lần lấy 2 nước (một của Trắng, một của Đen)
         for (int i = 0; i < moves.size(); i += 2) {
-            // Định dạng số thứ tự, nước đi của Trắng, và thêm một tab (\t) để căn cột
-            sb.append(String.format("%-4s %-10s", moveNumber + ".", moves.get(i)));
+            // Định dạng: Số thứ tự (3 ký tự, căn phải), dấu chấm, cách,
+            // Nước đi Trắng (10 ký tự, căn trái), cách, Nước đi Đen
+            sb.append(String.format("%3d. %-10s ", moveNumber, moves.get(i)));
 
-            // Kiểm tra xem có nước đi của Đen tương ứng không
+            // Nếu có nước đi của Đen
             if (i + 1 < moves.size()) {
                 sb.append(moves.get(i + 1));
             }

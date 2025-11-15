@@ -13,7 +13,6 @@ public class Rook extends Piece {
     }
 
     @Override
-    // THAY ĐỔI: Thêm GameService vào chữ ký phương thức
     public List<Position> getValidMoves(Board board, Position currentPosition, GameService gameService) {
         List<Position> moves = new ArrayList<>();
         int currentRow = currentPosition.row();

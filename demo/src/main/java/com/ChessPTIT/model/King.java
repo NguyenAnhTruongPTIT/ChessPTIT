@@ -1,6 +1,6 @@
 package com.ChessPTIT.model;
 
-import com.ChessPTIT.service.GameService; // <-- THÊM IMPORT NÀY
+import com.ChessPTIT.service.GameService;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,7 +13,6 @@ public class King extends Piece {
     }
 
     @Override
-    // THAY ĐỔI: Thêm GameService vào chữ ký phương thức
     public List<Position> getValidMoves(Board board, Position currentPosition, GameService gameService) {
         List<Position> moves = new ArrayList<>();
         int currentRow = currentPosition.row();

@@ -1,6 +1,6 @@
 package com.ChessPTIT.model;
 
-import com.ChessPTIT.service.GameService; // <-- THÊM IMPORT NÀY
+import com.ChessPTIT.service.GameService; 
 import java.util.List;
 
 public abstract class Piece {
